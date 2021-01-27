@@ -1,0 +1,191 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?><project>
+  <actions/>
+  <description>Jenkins job for running Coverage Linux</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.31">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>VCAST_BRANCH</name>
+          <description>Name of the Vectorcast branch which we need to test</description>
+          <defaultValue>vc20__89129_vctools</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HARVESTER_BRANCH</name>
+          <description>Name of the harvester branch which we need to test </description>
+          <defaultValue>develop__coverage_linux</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.4.5">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/VectorSoftwareRI/Harvester.git</url>
+        <credentialsId>git_credentials</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/${HARVESTER_BRANCH}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.CloneOption>
+        <shallow>true</shallow>
+        <noTags>false</noTags>
+        <reference/>
+        <depth>1</depth>
+        <honorRefspec>false</honorRefspec>
+      </hudson.plugins.git.extensions.impl.CloneOption>
+    </extensions>
+  </scm>
+  <assignedNode>vhblrpctlin007</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -xe
+
+
+time wget -q --progress=bar http://vabosautofs1.vi.vector.int/JobData/VectorCAST/${VCAST_BRANCH}/deliver/linux64/release.tar.gz
+
+tar xzf release.tar.gz --one-top-level=vcast --strip-components 1
+export MY_VECTORCAST_DIR=$PWD/vcast
+export LM_LICENSE_FILE=7650@licenseserver.vectors.com
+
+cd ~/vector/source/VectorCAST
+git stash
+git clean -f -d -x
+git fetch --all
+git checkout ${VCAST_BRANCH}
+git pull origin ${VCAST_BRANCH}
+cd ${WORKSPACE}
+$MY_VECTORCAST_DIR/vcshell bash -c "source ~/repos/BuildSetup/build_setup; build_setup checkout ${VCAST_BRANCH}; build_setup build"
+export VECTORCAST_DIR=~/vector/build/${VCAST_BRANCH}/Linux/vc
+
+
+
+export PATH=/home/BUILD64/bin/gcc-8.3.0-glibc-2.17/bin:/home/BUILD64/bin/cmake-3.17.2/bin/:$PATH
+#Create cover project
+$VECTORCAST_DIR/clicast -lc cover env create VcTools
+$VECTORCAST_DIR/clicast -lc template GNU_CPP_83
+$VECTORCAST_DIR/clicast -lc option  COVERAGE_IO_TYPE VCAST_COVERAGE_IO_BUFFERED
+$VECTORCAST_DIR/clicast -lc option  VCAST_APPEND_TO_TESTINSS TRUE
+$VECTORCAST_DIR/clicast -lc option  VCAST_COVERAGE_FOR_HEADERS TRUE
+$VECTORCAST_DIR/clicast -lc option  VCAST_DUMP_COVERAGE_AT_EXIT TRUE
+$VECTORCAST_DIR/clicast -lc option  VCAST_COVER_STATEMENTS_BY_BLOCK TRUE
+$VECTORCAST_DIR/clicast -lc option C_EDG_FLAGS "-w --g++ --gnu_version 80300 --type_info_in_std --type_traits_helpers --64_bit_target"
+$VECTORCAST_DIR/clicast -lc option C_ALT_EDG_FLAGS "-w --gcc --gnu_version 80300 --64_bit_target"
+
+
+#convert all relative path vcHarvesterSrcFilesForCoverageLinux.txt to absolute path
+cd ~/vector/source/VectorCAST
+chmod +x ${WORKSPACE}/abspath.py
+$VECTORCAST_DIR/vpython ${WORKSPACE}/abspath.py ${WORKSPACE}/vcHarvesterSrcFilesForCoverageLinux.txt
+$VECTORCAST_DIR/vpython ${WORKSPACE}/abspath.py ${WORKSPACE}/vcHarvesterAppendCoverIoLinux.txt
+cd ${WORKSPACE}
+
+#Collect metrics only for the files of interest
+$VECTORCAST_DIR/vcutil addmetrics --filelist=vcHarvesterSrcFilesForCoverageLinux.txt || true
+
+$VECTORCAST_DIR/clicover add_source_vcdb VcTools vcshell.db vcHarvesterSrcFilesForCoverageLinux.txt
+
+#Append cover io
+while read line
+do
+	$VECTORCAST_DIR/clicast -lc -e VcTools cover append TRUE -u $line
+done &lt; vcHarvesterAppendCoverIoLinux.txt 
+
+#if system headers are collapsed we have instrumentation bug from signal.h {https://kb.vector.com/entry/1495/}
+$VECTORCAST_DIR/clicast -lc -e VcTools options VCAST_COLLAPSE_STD_HEADERS COLLAPSE_NONE
+
+$VECTORCAST_DIR/clicast -lc -e VcTools cover instrument statement
+sed -i 's/project(LibVcApp C CXX)/project(LibVcApp C CXX)\nadd_definitions("-Wno-error=deprecated")\nadd_definitions("-Wno-error=deprecated")\nadd_definitions("-Wno-error")\nstring(REPLACE "-std=c++17 "  "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})\n/' ~/vector/source/VectorCAST/lib/libvcapp/CMakeLists.txt
+source ~/repos/BuildSetup/build_setup; build_setup checkout ${VCAST_BRANCH}; build_setup build
+
+
+export PATH=/home/svc-jenkins-pct-4/.toolchain/gcc/bin:/home/svc-jenkins-pct-4/.toolchain/cmake/bin:$PATH
+mkdir tbuild
+mkdir coverage_result
+cd tbuild
+cmake -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ ../tests
+$VECTORCAST_DIR/vpython VcRunTests.py || true
+rm -rf ../coverage_result/.DAT
+while read line
+do
+   arrIN=(${line//'/'/ })
+   len=${#arrIN[@]}
+   find . -name "TESTINSS*" -exec cat '{}' &gt; ../coverage_result/${arrIN[len-1]}.DAT ';'
+done &lt; vc_test_add_dir
+cd ..
+
+export MANAGE_PROJECT="${WORKSPACE}/VcToolsProject.vcm"
+export HISTORY_DIR="$PWD/Linux"
+export VC_RESULT_DIR=$PWD/results
+
+
+
+#Add TESTINSS.DAT to cover project
+while read line
+do
+    arrIN=(${line//'/'/ })
+    len=${#arrIN[@]} 
+	$VECTORCAST_DIR/clicast -lc -e VcTools cover result add  coverage_result/${arrIN[len-1]}.DAT
+done &lt; tbuild/vc_test_add_dir
+
+#Create Manage project
+$VECTORCAST_DIR/manage -p "${MANAGE_PROJECT}" --create
+$VECTORCAST_DIR/manage -p "${MANAGE_PROJECT}" --level Linux --create
+$VECTORCAST_DIR/manage -p "${MANAGE_PROJECT}" --level Linux/SystemTesting --create
+$VECTORCAST_DIR/manage -p "${MANAGE_PROJECT}" --group Cover --create
+$VECTORCAST_DIR/manage -p "${MANAGE_PROJECT}" --level Linux/SystemTesting --add Cover
+$VECTORCAST_DIR/manage -p "${MANAGE_PROJECT}" --import VcTools.vcp 
+$VECTORCAST_DIR/manage -p "${MANAGE_PROJECT}" --group Cover --add VcTools
+
+#Generate reports
+$VECTORCAST_DIR/vpython "/home/vectorindia/vc_scripts/generate-results.py" --api 2 "${MANAGE_PROJECT}" 
+$VECTORCAST_DIR/manage --project "${MANAGE_PROJECT}" --full-status="VcTools_full_report.html"
+$VECTORCAST_DIR/manage --project "${MANAGE_PROJECT}" --create-report=aggregate   --output="VcTools_aggregate_report.html"
+$VECTORCAST_DIR/manage --project "${MANAGE_PROJECT}" --create-report=metrics     --output="VcTools_metrics_report.html"
+$VECTORCAST_DIR/manage --project "${MANAGE_PROJECT}" --create-report=environment --output="VcTools_environment_report.html"
+$VECTORCAST_DIR/manage --project "${MANAGE_PROJECT}" --full-status  "VcTools_full_report.txt"
+$VECTORCAST_DIR/vcdash --project "${MANAGE_PROJECT}" --history-dir="${HISTORY_DIR}" --save-history 
+$VECTORCAST_DIR/vpython "/home/vectorindia/vc_scripts/gen-combined-cov.py" "VcTools_aggregate_report.html"
+$VECTORCAST_DIR/vpython "/home/vectorindia/vc_scripts/getTotals.py" --api 2 "VcTools_full_report.html"
+
+#Start vcdash as a daemon
+echo #!/bin/bash &gt; vcdash.sh
+echo cd $WORKSPACE &gt;&gt; vcdash.sh
+echo $VECTORCAST_DIR/vcdash --project "${MANAGE_PROJECT}" --history-dir="${HISTORY_DIR}" --run-server --vcdb vcshell.db --port 8080 &gt;&gt; vcdash.sh
+chmod +x vcdash.sh
+daemonize -E BUILD_ID=dontKillMe -E VECTORCAST_DIR=$VECTORCAST_DIR $PWD/vcdash.sh
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.38">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter/>
+      <externalDelete/>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.11.8"/>
+  </buildWrappers>
+</project>

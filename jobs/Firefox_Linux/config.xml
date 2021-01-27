@@ -1,0 +1,394 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?><project>
+  <actions/>
+  <description>Jenkins job for running  firefox linux</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.31">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>VCAST_BRANCH</name>
+          <description>Name of the Vectorcast branch which we need to test</description>
+          <defaultValue>vc20</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HARVESTER_BRANCH</name>
+          <description>Name of the harvester branch which we need to test </description>
+          <defaultValue>develop</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>summary_file</name>
+          <description>This file contains the final  output of firefox linux project.</description>
+          <defaultValue>summary.txt</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.4.5">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/VectorSoftwareRI/Harvester.git</url>
+        <credentialsId>git_credentials</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/${HARVESTER_BRANCH}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.CloneOption>
+        <shallow>true</shallow>
+        <noTags>false</noTags>
+        <reference/>
+        <depth>1</depth>
+        <honorRefspec>false</honorRefspec>
+      </hudson.plugins.git.extensions.impl.CloneOption>
+    </extensions>
+  </scm>
+  <assignedNode>vhblrpctlin006</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -xe
+
+export PATH=/home/Users/vectorindia/.toolchain/gcc/bin:/home/Users/vectorindia/.toolchain/cmake/bin:$PATH
+
+ time wget -q --progress=bar http://vabosautofs1.vi.vector.int/JobData/VectorCAST/${VCAST_BRANCH}/deliver/linux64/release.tar.gz
+
+ tar xzf release.tar.gz --one-top-level=vcast --strip-components 1
+export VECTORCAST_DIR=$PWD/vcast
+export LM_LICENSE_FILE=7650@10.91.39.11
+
+ cp  /home/Users/vectorindia/firefox/firefox-19.0.2.source.tar.gz $WORKSPACE
+export PATH=/home/Users/vectorindia/.toolchain/gcc/bin:$PATH
+cp /home/Users/vectorindia/firefox/firefox_scripts/* $WORKSPACE
+
+rm -rf firefox_scripts
+mkdir firefox_scripts
+cp *.sh firefox_scripts
+export C_INCLUDE_PATH=/usr/include/tirpc
+
+##########################################################################################
+##########################################################################################
+#############    SET VCTOOLS PACKAGE    ##################################################
+#export VCTOOLS_PACKAGE="/mnt/nfs/shared/88425/release32.tar.gz"
+#
+
+#VCTOOLS_PACKAGE=`find /mnt/nfs/shared/Jenkins_Harvester_89696/Linux -maxdepth 1 -name *.tgz`
+
+#############    SET BOOST DIRECTORY   ##################################################
+#export BOOST_DIR="/mnt/nfs/TOOLS/boost-1.53.0"
+
+############     SET VECTOR LICENSE FILE ################################################
+#export VECTOR_LICENSE_FILE=27000@192.168.163.60
+
+############     SET VECTORCAST_DIR      ################################################
+#export VECTORCAST_DIR=$LINUX_VECTORCAST_DIR
+
+##########################################################################################
+##########################################################################################
+
+#if [ -f  $VCTOOLS_PACKAGE ];then
+#    echo $VCTOOLS_PACKAGE
+#	tar -zxvf $VCTOOLS_PACKAGE
+#    cd release
+#    ./install.sh
+#    cd ..
+#else
+#	echo "VcTools package not available in $VCTOOLS_PACKAGE"
+#    exit  1
+#fi
+
+
+artifact=("Metrics Collected" "Successful for" "failed for")
+_expected=("Passed" "Failed" "Failed due to lesser artifact")
+_result=${_expected[0]}
+_threshold=4800
+
+#function to handle error 
+handle_error()
+{
+	export _error_=$?
+	if [ ! "$_error_" == "0" ];then
+		echo "      Command failed "
+		export _RETURN_CODE_=$_error_
+	fi
+}
+
+#global variable to hold variable
+_var_="--"
+#function to generate tabular file
+Extract()
+{
+
+output=`grep "real" $1 | awk '{printf("%s",$2)}'`
+grep "real" $1 | awk '{printf("         %s         ",$2)}'&gt;&gt;$summary_file
+echo -n -e  $2 &gt;&gt;$summary_file
+echo -n -e "-" &gt;&gt;$summary_file
+echo -n -e $3  &gt;&gt;$summary_file
+echo -n -e  "   "&gt;&gt;$summary_file
+if [ ! -z "$4" ] &amp;&amp; [ ! -z "$5" ]
+then
+_var_=`grep "$5" $4 | grep -o '[0-9]\+'`
+if [ "$5" == "${artifact[1]}" ]
+then 
+if [ "$_var_" -ge "$_threshold" ]
+then
+_result=${_expected[0]}
+else
+_result=${_expected[1]}
+fi
+fi
+fi
+echo -n -e " $_var_ " &gt;&gt;$summary_file
+echo -n -e " $_var_ " &gt;&gt;$summary_file
+_var_="--"
+out=`echo $output | awk '{split ($0,a,"m");print a[1]}'`
+if  [ $out -ge $2 ] &amp;&amp; [ $out -le $3 ] 
+then 
+echo -n  -e " Passed "&gt;&gt;$summary_file
+else
+echo  -n -e " Failed "&gt;&gt;$summary_file
+fi
+echo $_result &gt;&gt;$summary_file 
+
+}
+#secondary function to help generate Extract format
+Extract2()
+{
+if [ ! "$2" == "vcdb_getfiles.out.txt" ]
+then  
+_var_=`cat $2 | wc -l`
+else
+_var_=`cat $2 | wc -l`
+fi
+Extract $1 $3 $4
+}
+
+
+#Print tools version in console for reference
+$VECTORCAST_DIR/vcshell --version
+$VECTORCAST_DIR/clicast --version
+
+$VECTORCAST_DIR/clicast -lc option C_EDG_FLAGS "-w --g++ --gnu_version 46300 --type_info_in_std --type_traits_helpers --64_bit_target"
+$VECTORCAST_DIR/clicast -lc option C_ALT_EDG_FLAGS "-w --gcc --gnu_version 46300 --64_bit_target"
+
+
+
+#timing constant
+vcshelltime=20
+
+. ./make_config
+
+#print date 
+echo $(date) &gt;&gt;sol.txt
+
+#print VcTools version in log file
+#echo " VcTools Version : ` $VECTORCAST_DIR/vcshell --version | grep Version | awk '{print $3}'` " &gt;&gt; $summary_file
+echo " VcTools Version : ` $VECTORCAST_DIR/vcshell --version | grep Version | awk '{print $3}'` " &gt;&gt; sol.txt
+#echo  &gt;&gt; $summary_file
+
+#tabular format for the file
+echo -e  "Command               Time      ExpectedTime  Artifact ExpectedArtifact   TimmingResult   ArtiResult  " &gt;&gt;$summary_file
+echo -e  "Command               Time      ExpectedTime  Artifact ExpectedArtifact   TimmingResult   ArtiResult  " &gt;&gt;sol.txt
+
+
+
+#Execute and measure timings for vcshell make -j8
+echo -n -e "VchellMake-j4 \t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcshell --db=pristine_vcshell.db make -j4 &gt;vcshell_make.out.txt 2&gt;&amp;1) 2&gt;&gt; vcshell_make.out || handle_error
+Extract vcshell_make.out $vcshelltime `expr $vcshelltime + 6` || handle_error
+
+
+#Execute and measure timings for clearmetrics
+cp pristine_vcshell.db vcutil_metrics.db
+#echo -n -e "VcdbClearmetrics"&gt;&gt;$summary_file
+#time ($VECTORCAST_DIR/vcdb clearmetrics --db=vcutil_metrics.db &gt; vcdb_clearmetrics.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_clearmetrics.out || handle_error
+#Extract vcdb_clearmetrics.out 0 1
+
+#Execute and measure timings for vcutil addmetrics
+echo  -n -e "VcutilAddmetrics\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcutil --db=vcutil_metrics.db  --flags="-include=1,-f=1,-std=gnu++0x,-m=1,-W=1" --all addmetrics  &gt; vcutil_addmetrics.out.txt 2&gt;&amp;1) 2&gt;&gt; vcutil_addmetrics.out || handle_error
+Extract vcutil_addmetrics.out `expr $vcshelltime + 63`  `expr $vcshelltime + 75` vcutil_addmetrics.out.txt "${artifact[0]}" || handle_error
+
+
+#Verify metrics recorded in vcutil
+echo -n -e "VcdbGetmetrics\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb getmetrics  --db=vcutil_metrics.db &gt; vcdb_getmetrics_for_vcshell_metrics.out.txt 2&gt;&amp;1) 2&gt;&gt;vcdb_getmetrics_vcutil.out || handle_error
+Extract2 vcdb_getmetrics_vcutil.out vcdb_getmetrics_for_vcshell_metrics.out.txt 0 1  || handle_error
+
+
+#Vcutil Instrument 
+echo -n -e "VcutilInstrument--jobs=4\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcutil  --db=vcutil_metrics.db --flags="-include=1,-f=1,-std=gnu++0x,-m=1,-W=1" --all --jobs=4 --destination_dir=InstFiles --coverage_type=statement instrument  &gt; vcutil_instr.out.txt 2&gt;&amp;1) 2&gt;&gt; vcutil_instrument.out || handle_error
+Extract vcutil_instrument.out `expr $vcshelltime + 10` `expr $vcshelltime + 22` vcutil_instr.out.txt "${artifact[1]}" || handle_error
+
+#Vcutil Quick parse
+echo -n -e "VcutilQikparse--jobs=4\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcutil --db=vcutil_metrics.db --flags="-include=1,-f=1,-std=gnu++0x,-m=1,-W=1" --all --jobs=4 --destination_dir=Quick quickparse &gt; vcutil_quick.out 2&gt;&amp;1) 2&gt;&gt; vcutil_qikparse.out || handle_error
+Extract vcutil_qikparse.out `expr $vcshelltime - 3` `expr $vcshelltime + 5` vcutil_quick.out "${artifact[1]}" || handle_error
+
+
+#vcdb getfiles
+echo -n -e "VcdbGetfiles\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb getfiles --db=pristine_vcshell.db &gt;vcdb_getfiles.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getfiles || handle_error
+Extract2 vcdb_getfiles vcdb_getfiles.out.txt 0 1
+
+#vcdb dumpcmd
+echo -n -e "VcdbDumpcmd\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb dumpcommands --db=pristine_vcshell.db &gt;vcdb_dumpcommand.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_dump || handle_error
+Extract vcdb_dump 0 1
+
+#vcdb dumpverb
+echo -n -e "VcdbDumpverb\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb dumpverbs --db=pristine_vcshell.db &gt; vcdb_dumpverbs.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_dumpv  || handle_error
+Extract vcdb_dumpv 0 1
+
+#vcdb getobjpath
+echo -n -e "VcdbDbgetopbjpath\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb getobjpath --filelist=vcdb_getfiles.out.txt --db=pristine_vcshell.db &gt; vcdb_getobjpath.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getobjpath  || handle_error
+Extract vcdb_getobjpath 0 1
+
+#vcdb getapps
+echo -n -e "VcdbGetapps\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb getapps --db=pristine_vcshell.db &gt;vcdb_getapps.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getapps  || handle_error
+Extract vcdb_getapps 0 1
+
+#get commentdata
+echo -n -e "VcdbGetcommentdata\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb getcommentdata  --db=pristine_vcshell.db &gt; vcdb_getcommentdata.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getcommentdata || handle_error
+Extract vcdb_getcommentdata 0 1
+
+#get vcdb metrics
+echo -n -e "VcdbGetmetrics\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb getmetrics --db=vcutil_metrics.db &gt; vcdb_getmetrics_data.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_met  || handle_error
+Extract vcdb_met 0 1
+
+#get vcdb path
+echo -n -e "VcdbGetpaths\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb getpaths  --db=pristine_vcshell.db &gt; vcdb_getpaths_data.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getpath  || handle_error
+Extract vcdb_getpath 0 1
+
+#get vcdb tags
+echo -n -e "VcdbGettags\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb gettags  --db=pristine_vcshell.db &gt; vcdb_gettags_data.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_gettags || handle_error
+Extract vcdb_gettags 0 1
+
+#get linkcmd
+echo -n -e "VcdbGetlinkcmd\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb getlinkcmd --db=pristine_vcshell.db &gt; vcdb_getlinkcmd_data.out.txt 2&gt;&amp;1) 2&gt;&gt;vcdb_getlinkcmd || handle_error
+Extract vcdb_getlinkcmd 0 1
+
+#get list
+echo -n -e "VcdbList-prefixes\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb list-prefixes  --db=pristine_vcshell.db &gt; vcdb_list-prefixes_data.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getlist || handle_error
+Extract vcdb_getlist 0 1
+
+#getcmd.sh
+echo -n -e "Getcmd.sh\t"&gt;&gt;$summary_file
+cp -r ../../firefox_scripts/* .
+chmod +x getcmd.sh
+time (./getcmd.sh pristine_vcshell.db vcdb_getfiles.out.txt &gt; getcommands_data.out.txt 2&gt;&amp;1) 2&gt;&gt; getcmd || handle_error
+Extract getcmd 1 3
+
+#getcommentdensity
+echo -n -e "GetcommentDensity.sh\t"&gt;&gt;$summary_file
+chmod +x getcommentdensity.sh
+time (./getcommentdensity.sh pristine_vcshell.db vcdb_getfiles.out.txt &gt; get_commentdensit_out.txt 2&gt;&amp;1) 2&gt;&gt; getcomment || handle_error
+Extract getcomment 1 3
+
+#getincludes
+echo -n -e "Getincludes.sh\t"&gt;&gt;$summary_file
+chmod +x getincludes.sh
+time (./getincludes.sh pristine_vcshell.db vcdb_getfiles.out.txt  &gt; get_includes_out.txt 2&gt;&amp;1) 2&gt;&gt;vcdb_getinclude || handle_error
+Extract vcdb_getinclude 0 1
+
+#getdefines
+echo -n -e "Getdefines.sh\t"&gt;&gt;$summary_file
+chmod +x getdefines.sh
+time (./getdefines.sh pristine_vcshell.db vcdb_getfiles.out.txt  &gt; get_defines_out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getdefine || handle_error
+Extract vcdb_getdefine 0 1
+
+#getoptions
+echo -n -e "Getoptions.sh\t"&gt;&gt;$summary_file
+chmod +x getoptions.sh || handle_error
+time (./getoptions.sh pristine_vcshell.db vcdb_getfiles.out.txt  &gt; get_options_out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getoption || handle_error
+Extract vcdb_getoption 0 3
+
+#getpopt
+echo -n -e "Getpoptions.sh\t"&gt;&gt;$summary_file
+chmod +x getppopts.sh || handle_error
+time (./getppopts.sh pristine_vcshell.db vcdb_getfiles.out.txt &gt;get_poptions_out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getpoption || handle_error
+Extract vcdb_getpoption 2 4
+
+#getuniindex
+echo -n -e "Getunitindex.sh\t"&gt;&gt;$summary_file
+chmod +x getunitindex.sh || handle_error
+time (./getunitindex.sh pristine_vcshell.db vcdb_getfiles.out.txt &gt;get_unitindex_out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getunitindex || handle_error
+Extract vcdb_getunitindex 0 1
+
+#getpathtype
+echo -n -e "GetPathtype.sh\t"&gt;&gt;$summary_file
+chmod +x getpathtype.sh || handle_error
+time (./getpathtype.sh pristine_vcshell.db vcdb_getfiles.out.txt &gt;get_pathtypes_out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getpathtype || handle_error
+Extract vcdb_getpathtype 0 1
+
+#setpathtype
+echo -n -e "Setpathtype.sh\t"&gt;&gt;$summary_file
+chmod +x setpathtype.sh || handle_error
+time (./setpathtype.sh pristine_vcshell.db vcdb_getfiles.out.txt  &gt; set_pathtypes_out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_setpathtype || true
+Extract vcdb_setpathtype 0 1
+
+#getallcmdlines
+echo -n -e "getallcmdlines\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcdb --db=pristine_vcshell.db getallcmdlines  &gt; vcdb_getcmdlines.out.txt 2&gt;&amp;1) 2&gt;&gt; vcdb_getallcommandlines || handle_error
+Extract vcdb_getallcommandlines 0 1
+
+#vcshell putcommand
+echo -n -e "vcshellputcommand\t"&gt;&gt;$summary_file
+time ($VECTORCAST_DIR/vcshell --db=putcmd.db putcommand --inputcmds=vcdb_getcmdlines.out.txt &gt; vcshell_putcmd.out.txt 2&gt;&amp;1) 2&gt;&gt;vcshell_putcommand  || handle_error
+Extract vcshell_putcommand 0 1
+
+
+(column -t $summary_file) &gt; temp.txt || handle_error
+rm -rf $summary_file || handle_error
+cp temp.txt $summary_file || handle_error
+#quick 
+#Archive the artifacts
+cd $top_level_archive_dir
+archive_dir=$(date +%d)
+if [ -d $archive_dir ];then
+	rm -rf $archive_dir
+fi
+exit /b $_RETURN_CODE_
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.38">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter/>
+      <externalDelete/>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.11.8"/>
+  </buildWrappers>
+</project>

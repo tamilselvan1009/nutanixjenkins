@@ -1,0 +1,76 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Used to run firefox windows</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>VCAST_BRANCH</name>
+          <description>Name of the VectorCAST branch to test</description>
+          <defaultValue>vc20</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>vhblrpctwin011</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.BatchFile>
+      <command>&#xd;
+ curl -O http://vabosautofs1.vi.vector.int/JobData/VectorCAST/%VCAST_BRANCH%/deliver/windows64/release.tar.gz&#xd;
+&#xd;
+7z x  -so release.tar.gz | 7z x -si -ttar&#xd;
+rmdir /q /s vcast&#xd;
+move release vcast&#xd;
+set VECTORCAST_DIR=%CD%\vcast&#xd;
+set LM_LICENSE_FILE=7650@licenseserver.vectors.com&#xd;
+&#xd;
+&#xd;
+%VECTORCAST_DIR%\vcshell --version&#xd;
+%VECTORCAST_DIR%\clicast --version&#xd;
+&#xd;
+ 7z x  -so C:\Users\svc-jenkins-pct-4\Downloads\firefox-19.0.2.source.tar.bz2 |  7z x -si -ttar&#xd;
+&#xd;
+cd C:\mozilla-build&#xd;
+call start-shell-msvc2010-jenkins.bat&#xd;
+&#xd;
+cd %WORKSPACE%\\mozilla-release&#xd;
+echo cd &quot;$WORKSPACE/mozilla-release&quot; &gt; mycommand.txt&#xd;
+echo echo pwd=$PWD  &gt;&gt; mycommand.txt&#xd;
+echo rm -rf vcshell.db&#xd;
+echo &quot;$VECTORCAST_DIR/vcshell&quot; python mach build &gt;&gt; mycommand.txt&#xd;
+REM echo  mach build &amp;gt;&amp;gt; mycommand.txt&amp;#xd;&#xd;
+REM echo time(&amp;quot;$VECTORCAST_DIR/vcutil&amp;quot; addmetrics --vcppot) &amp;gt;&amp;gt;mycommand.txt&amp;#xd;&#xd;
+REM echo time(&amp;quot;$VECTORCAST_DIR/vcutil&amp;quot; quickparse --vcppopt) &amp;gt;&amp;gt;mycommand.txt&amp;#xd;&#xd;
+REM echo time(&amp;quot;$VECTORCAST_DIR/vcdb&amp;quot; getpaths) &amp;gt;&amp;gt;mycommand.txt &amp;#xd;&#xd;
+echo exit &amp;gt;&amp;gt; mycommand.txt&amp;#xd;&#xd;
+type mycommand.txt | bash --login -i&#xd;
+&#xd;
+REM powershell &amp;quot;Measure-Command {%VECTORCAST_DIR%\vcutil  addmetrics --vcppopt | Out-Host}&amp;quot;&amp;#xd;&#xd;
+REM powershell &amp;quot;Measure-Command {%VECTORCAST_DIR%\vcutil  quickparse --vcppopt | Out-Host}&amp;quot;&amp;#xd;&#xd;
+REM powershell &amp;quot;Measure-Command {%VECTORCAST_DIR%\vcdb getpaths  | Out-Host}&amp;quot;&amp;#xd;&#xd;
+REM powershell &amp;quot;Measure-Command {%VECTORCAST_DIR%\vcdb files | Out-Host}&amp;quot;&amp;#xd;&#xd;
+REM powershell &amp;quot;Measure-Command {%VECTORCAST_DIR%\vcdb getappfiles | Out-Host}&amp;quot;      </command>
+      <configuredLocalRules/>
+    </hudson.tasks.BatchFile>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.38">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.11.8"/>
+  </buildWrappers>
+</project>

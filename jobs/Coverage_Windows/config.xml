@@ -1,0 +1,231 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?><project>
+  <actions/>
+  <description>Used to run coverage windows</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.31">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>VCAST_BRANCH</name>
+          <description>Name of the VectorCAST branch to test</description>
+          <defaultValue>vc20__89129_vctools</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Harvester_Branch</name>
+          <description>Name of the VectorCAST branch to test</description>
+          <defaultValue>develop__coverage_linux</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.4.5">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/VectorSoftwareRI/Harvester.git</url>
+        <credentialsId>351dfb65-fb36-463f-a46e-56f3dd6504d2</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/${HARVESTER_BRANCH}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <assignedNode>vhblrpctwin010</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.BatchFile>
+      <command>taskkill /IM vcdash.exe /f&#13;
+&#13;
+ call "c:\Program Files (x86)\Microsoft Visual Studio 15.0\vc\Auxiliary\Build\vcvars64.bat"&#13;
+ curl -O  http://vabosautofs1.vi.vector.int/JobData/VectorCAST/%VCAST_BRANCH%/deliver/windows64/release.tar.gz&#13;
+&#13;
+ 7z x  -so release.tar.gz | 7z x -si -ttar&#13;
+ move release vcast&#13;
+set MY_VECTORCAST_DIR=%CD%\vcast&#13;
+set LM_LICENSE_FILE=7650@licenseserver.vectors.com&#13;
+&#13;
+&#13;
+ %MY_VECTORCAST_DIR%\vcshell --version&#13;
+ %MY_VECTORCAST_DIR%\clicast --version&#13;
+&#13;
+&#13;
+set PATH=C:\\cygwin64\\bin;%PATH%&#13;
+set BLD_SRC1=C:\cygwin64\home\svc-jenkins-pct-4\vector\source\VectorCAST &#13;
+ cd %BLD_SRC1%&#13;
+cd C:\\cygwin64\\home\\svc-jenkins-pct-4\\vector\\source\\VectorCAST&#13;
+ dir&#13;
+&#13;
+git stash&#13;
+git clean -f -d -x&#13;
+git fetch --all&#13;
+git checkout %VCAST_BRANCH%&#13;
+git pull origin %VCAST_BRANCH%&#13;
+set PATH=C:\Python27;%PATH%&#13;
+cd %WORKSPACE%&#13;
+ dir&#13;
+&#13;
+ bash -c "source /home/svc-jenkins-pct-4/repos/BuildSetup/build_setup ;build_setup purge --all -f"&#13;
+&#13;
+&#13;
+ call "C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\Auxiliary\Build\vcvars64.bat"&#13;
+set "PATH=C:\vector_deps\n\ninja-1.10.0\bin;C:\vector_deps\n\cmake-3.17.2\bin;%PATH%"&#13;
+del  vcshell.*&#13;
+ bash -c "source /home/svc-jenkins-pct-4/repos/BuildSetup/build_setup; build_setup  checkout %VCAST_BRANCH%;build_setup build; cd $BLD_DST/..; ninja -t clean VcAppLib"&#13;
+&#13;
+REM ############################################################&#13;
+&#13;
+echo %MY_VECTORCAST_DIR%&#13;
+%MY_VECTORCAST_DIR%\vcshell --version&#13;
+&#13;
+ %MY_VECTORCAST_DIR%\vcshell bash -c "source /home/svc-jenkins-pct-4/repos/BuildSetup/build_setup; build_setup checkout %VCAST_BRANCH%;build_setup build" &#13;
+&#13;
+&#13;
+set VECTORCAST_DIR=C:\cygwin64\home\svc-jenkins-pct-4\vector\build\%VCAST_BRANCH%\vc\&#13;
+&#13;
+&#13;
+&#13;
+ %VECTORCAST_DIR%\clicast -lc template VISUAL_CPP_CPP_2017&#13;
+ %VECTORCAST_DIR%\clicast -lc option C_ALT_EDG_FLAGS "-w --microsoft --c --microsoft_version 1912 --64_bit_target"&#13;
+%VECTORCAST_DIR%\clicast -lc option C_EDG_FLAGS "-w --microsoft --c++ --microsoft_version 1912 --64_bit_target"&#13;
+ cd C:\\cygwin64\\home\\svc-jenkins-pct-4\\vector\\source\\VectorCAST&#13;
+ %VECTORCAST_DIR%\vpython %WORKSPACE%\abspath.py  %WORKSPACE%\vcHarvesterSrcFilesForCoverageWindows.txt&#13;
+ %VECTORCAST_DIR%\vpython %WORKSPACE%\abspath.py %WORKSPACE%\vcHarvesterAppendCoverIoWindows.txt&#13;
+ cd %WORKSPACE%&#13;
+&#13;
+ %VECTORCAST_DIR%\clicast -lc cover env create VcTools&#13;
+ %VECTORCAST_DIR%\clicast -lc option  COVERAGE_IO_TYPE VCAST_COVERAGE_IO_BUFFERED  %VECTORCAST_DIR%\clicast -lc option  VCAST_APPEND_TO_TESTINSS TRUE&#13;
+ %VECTORCAST_DIR%\clicast -lc option  VCAST_COVERAGE_FOR_HEADERS TRUE&#13;
+ %VECTORCAST_DIR%\clicast -lc option  VCAST_DUMP_COVERAGE_AT_EXIT TRUE&#13;
+ %VECTORCAST_DIR%\clicast -lc option  VCAST_COVER_STATEMENTS_BY_BLOCK TRUE&#13;
+  %VECTORCAST_DIR%\clicast -lc option  C_ALT_COMPILE_CMD "CL /c /Zi /EHsc /MD"&#13;
+ %VECTORCAST_DIR%\clicast -lc option  C_ALT_PREPROCESS_CMD "CL /E /C /EHsc /MD"&#13;
+  %VECTORCAST_DIR%\clicast -lc option  C_COMPILE_CMD "CL /c /Zi /EHsc /MD"&#13;
+  %VECTORCAST_DIR%\clicast -lc option  C_PREPROCESS_CMD "CL /E /C /EHsc /MD"&#13;
+&#13;
+&#13;
+ %VECTORCAST_DIR%\vcutil addmetrics --filelist=vcHarvesterSrcFilesForCoverageWindows.txt REM || true&#13;
+&#13;
+REM %VECTORCAST_DIR%\clicover add_source_vcdb VcTools vcshell.db  vcHarvesterSrcFilesForCoverageWindows.txt&#13;
+&#13;
+&#13;
+REM FOR /F "tokens=* delims=" %%x in (vcHarvesterAppendCoverIoWindows.txt) DO %VECTORCAST_DIR%\clicast -lc -e VcTools cover append TRUE -u  %%x&#13;
+&#13;
+&#13;
+REM %VECTORCAST_DIR%\clicast -lc -e VcTools cover instrument statement&#13;
+&#13;
+&#13;
+&#13;
+ bash -c "source /home/svc-jenkins-pct-4/repos/BuildSetup/build_setup; build_setup  checkout %VCAST_BRANCH%;build_setup build; cd $BLD_DST/..; ninja -t clean VcAppLib"&#13;
+ %MY_VECTORCAST_DIR%\vcshell bash -c "source /home/svc-jenkins-pct-4/repos/BuildSetup/build_setup; build_setup checkout %VCAST_BRANCH%;build_setup build" &#13;
+&#13;
+REM  TODO clean it after doing&#13;
+ bash -c "source /home/svc-jenkins-pct-4/repos/BuildSetup/build_setup; build_setup  checkout %VCAST_BRANCH%;cd $BLD_DST/..; ninja -t clean VcAppLib"&#13;
+&#13;
+ bash -c "source /home/svc-jenkins-pct-4/repos/BuildSetup/build_setup; build_setup  checkout %VCAST_BRANCH%;build_setup build"&#13;
+&#13;
+ &#13;
+ call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" x86&#13;
+   rmdir /q /s tbuild&#13;
+    mkdir tbuild&#13;
+    mkdir tb&#13;
+   rmdir /q /s coverage_result&#13;
+   mkdir coverage_result&#13;
+   cd tbuild&#13;
+   cmake -G"Visual Studio 11 2012" ..\tests &#13;
+    set VECTORCAST_DIR="C:\\cygwin64\\home\\svc-jenkins-pct-4\\vector\\build\\vc20__89129_vctools\\vc\\"&#13;
+   &#13;
+   cd %VECTORCAST_DIR%&#13;
+   dir vpython.exe&#13;
+   cd %WORKSPACE%\tbuild&#13;
+   echo %VECTORCAST_DIR%&#13;
+   %VECTORCAST_DIR%\vcshell --version&#13;
+   REM echo "python version here###############################"&#13;
+    echo "vcshell --version"&#13;
+   %VECTORCAST_DIR%\vcshell --version&#13;
+    echo %cd%&#13;
+   %VECTORCAST_DIR%\vpython --version&#13;
+    %VECTORCAST_DIR%\vpython VcRunTests.py &#13;
+  &#13;
+   copy tbuild/ tb/&#13;
+&#13;
+    cd tbuild &#13;
+&#13;
+for /F "tokens=* delims=" %%r in (vc_test_add_dir) do (&#13;
+ C:\\cygwin64\\bin\\find . -name "TESTINSS*" -exec cat '{}' &gt;"..\coverage_result\\%%r.DAT";&#13;
+ )&#13;
+&#13;
+&#13;
+cd %WORKSPACE%&#13;
+ for /F "tokens=* delims=" %%r in (%WORKSPACE%\\tbuild\\vc_test_add_dir) do (&#13;
+ %VECTORCAST_DIR%\clicast -lc -e VcTools cover result add "coverage_result\\%%r.DAT"&#13;
+ )&#13;
+&#13;
+ set "MANAGE_PROJECT=%WORKSPACE%\\VcToolsProject3.vcm"&#13;
+ rmdir /q /s %MANAGE_PROJECT%&#13;
+REM Create Manage project&#13;
+  %VECTORCAST_DIR%\manage -p "%MANAGE_PROJECT%" --create&#13;
+ %VECTORCAST_DIR%\manage -p "%MANAGE_PROJECT%" --level Windows --create&#13;
+  %VECTORCAST_DIR%\manage -p "%MANAGE_PROJECT%" --level Windows/SystemTesting --create&#13;
+  %VECTORCAST_DIR%\manage -p "%MANAGE_PROJECT%" --group Cover --create&#13;
+  %VECTORCAST_DIR%\manage -p "%MANAGE_PROJECT%" --level Windows/SystemTesting --add Cover&#13;
+ %VECTORCAST_DIR%\manage -p "%MANAGE_PROJECT%" --import VcTools.vcp &#13;
+  %VECTORCAST_DIR%\manage -p "%MANAGE_PROJECT%" --group Cover --add VcTools&#13;
+&#13;
+&#13;
+&#13;
+  %VECTORCAST_DIR%\vpython C:\SlaveJenkins\vc_scripts\generate-results.py --api 2 "%MANAGE_PROJECT%"&#13;
+&#13;
+  %VECTORCAST_DIR%\manage --project "%MANAGE_PROJECT%" --full-status="VcTools_Windows_full_report.html"&#13;
+  %VECTORCAST_DIR%\manage --project "%MANAGE_PROJECT%" --create-report=aggregate   --output="VcTools_Windows_aggregate_report.html"&#13;
+  %VECTORCAST_DIR%\manage --project "%MANAGE_PROJECT%" --create-report=metrics     --output="VcTools_Windows_metrics_report.html"&#13;
+  %VECTORCAST_DIR%\manage --project "%MANAGE_PROJECT%" --create-report=environment --output="VcTools_Windows_environment_report.html"&#13;
+  %VECTORCAST_DIR%\manage --project "%MANAGE_PROJECT%" --full-status &gt; "VcTools_Windows_full_report.txt"&#13;
+  %VECTORCAST_DIR%\vpython "C:\SlaveJenkins\vc_scripts\gen-combined-cov.py" "VcTools_Windows_aggregate_report.html"&#13;
+ %VECTORCAST_DIR%\vpython "C:\SlaveJenkins\vc_scripts\getTotals.py" --api 2 "VcTools_Windows_full_report.txt"&#13;
+&#13;
+&#13;
+%VECTORCAST_DIR%\vcdash -p "%MANAGE_PROJECT%" --history-dir="%WORKSPACE%" --save-history&#13;
+&#13;
+set _ID_STORE_=%BUILD_ID%&#13;
+&#13;
+set BUILD_ID=unique&#13;
+&#13;
+start /B %VECTORCAST_DIR%\vcdash --project %MANAGE_PROJECT% --history-dir=%WORKSPACE% --run-server --port 8080 --vcdb "%WORKSPACE%\vcshell.db"&#13;
+&#13;
+set BUILD_ID=%_ID_STORE_%&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.BatchFile>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.11.8"/>
+  </buildWrappers>
+</project>
